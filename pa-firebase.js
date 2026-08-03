@@ -566,7 +566,10 @@ function loginScreen() {
         'auth/too-many-requests': 'Trop de tentatives. Réessayez dans quelques minutes.',
         'auth/network-request-failed': 'Pas de connexion au serveur.',
       };
-      fail(map[ex.code] || 'Connexion impossible.');
+      /* Le code brut est affiche a l'ecran : sans lui, diagnostiquer un echec de
+       * connexion oblige a ouvrir la console du navigateur, ce qui n'est pas
+       * raisonnable a demander a un utilisateur. */
+      fail((map[ex.code] || 'Connexion impossible.') + '  [' + (ex.code || 'inconnu') + ']');
       btn.disabled = false; btn.textContent = 'Se connecter';
     }
   });
@@ -578,7 +581,7 @@ function loginScreen() {
       await sendPasswordResetEmail(auth, e);
       err.style.color = '#2F7D5B';
       fail('Un lien de réinitialisation vient d’être envoyé.');
-    } catch { fail('Envoi impossible pour cette adresse.'); }
+    } catch (ex2) { fail('Envoi impossible.  [' + (ex2.code || 'inconnu') + ']'); }
   });
 }
 
@@ -602,7 +605,10 @@ async function boot(user) {
   try {
     const p = await getDoc(doc(db, ...ORG_PATH, 'users', user.uid));
     if (p.exists()) profile = p.data();
-  } catch (err) { console.error('[Firebase] profil illisible', err); }
+  } catch (err) {
+    window.__paProfileErr = err.code || 'lecture-refusee';
+    console.error('[Firebase] profil illisible', err);
+  }
 
   if (!profile || !profile.role) {
     await signOut(auth);
@@ -610,7 +616,8 @@ async function boot(user) {
     loginScreen();
     const err = document.querySelector('#fb-err');
     if (err) {
-      err.textContent = 'Compte sans rôle attribué. Contactez l’administrateur.';
+      err.textContent = 'Compte sans rôle attribué ou profil illisible.'
+        + (window.__paProfileErr ? '  [' + window.__paProfileErr + ']' : '');
       err.hidden = false;
     }
     return;
