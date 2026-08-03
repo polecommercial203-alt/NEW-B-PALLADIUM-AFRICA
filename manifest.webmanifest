@@ -1,0 +1,45 @@
+{
+  "name": "Palladium Africa — CRM de pilotage commercial",
+  "short_name": "Palladium CRM",
+  "description": "Pilotage commercial des marques Palladium Africa : pipeline, appels d'offres, reporting.",
+  "lang": "fr",
+  "dir": "ltr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#122029",
+  "theme_color": "#122029",
+  "categories": ["business", "productivity"],
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-192-maskable.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "icons/icon-512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    { "name": "Pipeline", "url": "./#pipeline" },
+    { "name": "Appels d'offres", "url": "./#ao" },
+    { "name": "Mes alertes", "url": "./#alertes" }
+  ]
+}

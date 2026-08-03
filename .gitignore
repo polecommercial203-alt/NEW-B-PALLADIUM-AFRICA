@@ -1,0 +1,21 @@
+# Dépendances
+node_modules/
+
+# Firebase
+.firebase/
+firebase-debug.log
+*-debug.log
+.firebaserc.local
+
+# Système
+.DS_Store
+Thumbs.db
+
+# Éditeurs
+.vscode/
+.idea/
+*.swp
+
+# Sauvegardes locales de données (exports du CRM)
+*.backup.json
+export-*.json

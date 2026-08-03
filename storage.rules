@@ -1,0 +1,51 @@
+rules_version = '2';
+
+/* =============================================================================
+ * storage.rules — Pièces jointes (devis, contrats, factures, comptes rendus)
+ * -----------------------------------------------------------------------------
+ * Les fichiers ne transitent plus par l'état du CRM : ils vivent ici, et l'état
+ * ne conserve qu'une URL. Un contrat de 4 Mo devient possible — c'était exclu
+ * avec l'encodage base64 en stockage navigateur.
+ * ========================================================================== */
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    match /orgs/{org}/{folder}/{file} {
+
+      function member() {
+        return request.auth != null
+          && firestore.exists(/databases/(default)/documents/orgs/$(org)/users/$(request.auth.uid));
+      }
+      function role() {
+        return firestore.get(/databases/(default)/documents/orgs/$(org)/users/$(request.auth.uid)).data.role;
+      }
+
+      allow read: if member();
+
+      /* Dépôt : 20 Mo maximum, types bureautiques et images uniquement.
+       * Le contrôle de taille se fait sur les serveurs Google : inutile de faire
+       * confiance au formulaire. */
+      allow create: if member()
+        && role() in ['admin', 'dg', 'dc', 'cdc', 'com', 'apporteur']
+        && request.resource.size < 20 * 1024 * 1024
+        && (
+          request.resource.contentType.matches('application/pdf')
+          || request.resource.contentType.matches('image/.*')
+          || request.resource.contentType.matches('text/.*')
+          || request.resource.contentType.matches('application/vnd.*')
+          || request.resource.contentType.matches('application/msword')
+          || request.resource.contentType.matches('message/rfc822')
+        );
+
+      /* Un fichier déposé ne se réécrit pas : on en dépose un nouveau.
+       * Seuls administration et direction peuvent supprimer. */
+      allow update: if false;
+      allow delete: if member() && role() in ['admin', 'dg', 'dc'];
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
