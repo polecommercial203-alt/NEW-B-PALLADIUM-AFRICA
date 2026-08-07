@@ -190,22 +190,37 @@ function watch() {
     const distant = snap.docChanges().some(c =>
       !c.doc.metadata.hasPendingWrites && c.doc.data()._by !== uid);
     if (!distant) return;
-
-    /* Rechargement automatique — mais jamais au milieu d'une saisie. Une modale
-     * ouverte ou un champ en cours de frappe signifie que quelqu'un travaille :
-     * recharger lui ferait perdre ce qu'il est en train d'écrire. Dans ce cas on
-     * se contente du bandeau, et l'utilisateur décide. */
-    const enSaisie = document.querySelector('.modal-overlay')
-      || ['INPUT', 'TEXTAREA', 'SELECT'].includes(
-           (document.activeElement && document.activeElement.tagName) || '');
-
-    if (enSaisie) {
-      banner('Un collègue vient de modifier des données.', () => location.reload());
-      return;
-    }
-    banner('Mise à jour des données…', null);
-    setTimeout(() => location.reload(), 900);
+    rechargerDesQuePossible();
   }, err => console.error('[Firebase] écoute interrompue', err));
+}
+
+/* Rechargement automatique, sans intervention de l'utilisateur.
+ *
+ * Le seul cas où l'on temporise est une saisie en cours — modale ouverte ou
+ * champ actif. Recharger à ce moment-là effacerait ce que la personne est en
+ * train d'écrire, ce qui serait pire que d'afficher des chiffres vieux de
+ * quelques secondes. On repasse toutes les deux secondes, et le rechargement
+ * finit toujours par avoir lieu : il n'y a plus rien à cliquer. */
+let attenteRechargement = null;
+
+function saisieEnCours() {
+  if (document.querySelector('.modal-overlay')) return true;
+  const a = document.activeElement;
+  if (!a) return false;
+  if (a.isContentEditable) return true;
+  return ['INPUT', 'TEXTAREA', 'SELECT'].includes(a.tagName);
+}
+
+function rechargerDesQuePossible() {
+  if (attenteRechargement) return;
+  const essayer = () => {
+    if (saisieEnCours()) return;
+    clearInterval(attenteRechargement);
+    banner('Mise à jour des données…', null);
+    setTimeout(() => location.reload(), 600);
+  };
+  attenteRechargement = setInterval(essayer, 2000);
+  essayer();
 }
 
 /* ══════════════════ Fichiers (Firebase Storage) ══════════════════
@@ -313,6 +328,22 @@ async function setRole(email, role) {
   if (!hit) return { ok: false, error: 'Compte introuvable.' };
   await updateDoc(doc(db, ...ORG_PATH, 'users', hit.id), { role });
   return { ok: true };
+}
+
+/** Comptes réellement déclarés dans Firestore.
+ *  Ces documents survivent à toute réécriture de l'état : ils constituent donc
+ *  la référence sûre pour reconstruire la liste des utilisateurs. */
+async function listUsers() {
+  const snap = await getDocs(collection(db, ...ORG_PATH, 'users'));
+  const out = [];
+  snap.forEach(d => {
+    const u = d.data();
+    if (u && u.email) out.push({
+      uid: d.id, email: u.email, name: u.name || '', role: u.role || '',
+      country: u.country || '', active: u.active !== false,
+    });
+  });
+  return out;
 }
 
 /** Envoi d'un lien de réinitialisation — remplace la remise d'un mot de passe
@@ -525,6 +556,54 @@ function banner(message, onAction) {
   if (!onAction) setTimeout(() => b.remove(), 9000);
 }
 
+/* ══════════════════ Écrans d'état ══════════════════
+ * Volontairement autonomes : ils s'affichent avant que l'application existe. */
+
+function cadre(titre, texte, boutons) {
+  document.getElementById('pa-fb-etat')?.remove();
+  const w = document.createElement('div');
+  w.id = 'pa-fb-etat';
+  w.style.cssText = 'position:fixed;inset:0;z-index:10001;background:#0f1a20;'
+    + 'display:flex;align-items:center;justify-content:center;padding:24px;'
+    + 'font:15px/1.55 system-ui,sans-serif';
+  w.innerHTML = `
+    <div style="background:#fff;border-radius:14px;padding:32px 30px;width:min(100%,440px);
+                box-shadow:0 20px 60px rgba(0,0,0,.4)">
+      <img src="./icons/logo.png" alt="" width="52" height="52" style="display:block;margin:0 auto 16px">
+      <h1 style="margin:0 0 10px;font-size:19px;color:#12232b;text-align:center">${titre}</h1>
+      <p style="margin:0 0 20px;color:#5a6c73;font-size:14px;text-align:center">${texte}</p>
+      <div id="pa-etat-btns" style="display:flex;gap:9px;justify-content:center;flex-wrap:wrap"></div>
+    </div>`;
+  document.body.appendChild(w);
+  const zone = w.querySelector('#pa-etat-btns');
+  boutons.forEach(([label, fn, principal]) => {
+    const b = document.createElement('button');
+    b.textContent = label;
+    b.style.cssText = 'padding:11px 20px;border-radius:8px;font-size:14.5px;font-weight:600;'
+      + 'cursor:pointer;border:1px solid ' + (principal ? '#B5842C' : '#d6dee1')
+      + ';background:' + (principal ? '#B5842C' : '#fff') + ';color:' + (principal ? '#fff' : '#42555c');
+    b.onclick = fn;
+    zone.appendChild(b);
+  });
+  return w;
+}
+
+function ecranErreur(titre, texte, code) {
+  cadre(titre, texte + (code ? `<br><span style="font-size:12px;color:#93a3aa">[${code}]</span>` : ''),
+    [['Réessayer', () => location.reload(), true],
+     ['Se déconnecter', async () => { await signOut(auth); location.reload(); }, false]]);
+}
+
+function ecranInitialisation() {
+  return new Promise(resolve => {
+    const w = cadre('Initialiser la base',
+      'La base est vide. L’application va y installer sa structure et son jeu de '
+      + 'départ, que vous pourrez retirer ensuite depuis l’Administration.',
+      [['Initialiser', () => { w.remove(); resolve(true); }, true],
+       ['Annuler', () => { w.remove(); resolve(false); }, false]]);
+  });
+}
+
 /* ══════════════════ Écran de connexion ══════════════════
  * Volontairement autonome : il s'affiche avant que l'application n'existe. */
 
@@ -646,27 +725,56 @@ async function boot(user) {
   }));
 
   /* 3. Chargement de l'état. */
+  /* 3. Chargement de l'état — Firestore fait autorité, sans exception.
+   *
+   * L'application ne démarre QUE sur des données venues de la base. Trois cas :
+   *   — la base répond et contient un état  → on le charge, on démarre ;
+   *   — la base répond et elle est vide      → un administrateur peut l'initialiser ;
+   *   — la base ne répond pas                → on ne démarre pas.
+   *
+   * Le troisième cas est le plus important. Démarrer « quand même » sur la copie
+   * locale semble accommodant, mais cette copie finit par être renvoyée à la base
+   * et écrase le travail de tous. Un écran d'attente est désagréable ; une perte
+   * de données l'est infiniment plus. */
   let remote = null;
-  try { remote = await loadState(); }
-  catch (err) {
+  try {
+    remote = await loadState();
+  } catch (err) {
     console.error('[Firebase] chargement impossible', err);
-    banner('Base injoignable : travail sur la copie locale de ce poste.', null);
+    ecranErreur('Base de données injoignable',
+      'Vos données sont en sécurité dans Firebase, mais l’application ne peut pas '
+      + 'les lire pour le moment. Vérifiez votre connexion, puis réessayez. '
+      + 'Aucune modification ne sera enregistrée tant que la base reste inaccessible.',
+      err.code || 'indisponible');
+    return;
   }
 
   if (remote) {
+    /* Le stockage local n'est qu'un cache alimenté PAR la base. Il n'est jamais
+     * une source : c'est ce qui garantit qu'on ne réécrit que ce qu'on a lu. */
     localStorage.setItem(DB_KEY, JSON.stringify(remote));
     lastSent = Object.fromEntries(
       Object.entries(split(remote)).map(([k, v]) => [k, JSON.stringify(v)]));
   } else {
-    /* Base vide : première mise en service. Si ce poste détient déjà des données
-     * (pilote localStorage), elles seront remontées au premier persist(). */
+    /* Base vide : première mise en service. L'initialisation est un acte
+     * délibéré, réservé à l'administration — sans cela, n'importe quel poste
+     * pourrait remplir la base de données fictives. */
+    if (profile.role !== 'admin') {
+      ecranErreur('Base non initialisée',
+        'Aucune donnée n’a encore été enregistrée. Un administrateur doit ouvrir '
+        + 'l’application une première fois pour initialiser la base.', null);
+      return;
+    }
+    const initialiser = await ecranInitialisation();
+    if (!initialiser) { await signOut(auth); location.reload(); return; }
+    localStorage.removeItem(DB_KEY);   // l'application repartira de son jeu initial
     lastSent = {};
   }
 
   /* 4. Branchements exposés à l'application. */
   window.paSync = { push, flush };
   window.paFiles = { upload: uploadFile, remove: removeFile };
-  window.paAdmin = { createUser, disableUser, enableUser, setRole, resetPassword };
+  window.paAdmin = { createUser, disableUser, enableUser, setRole, resetPassword, listUsers };
   window.paAccount = { changePassword, mustChange: !!profile.mustChange };
   window.paAuth = {
     signOut: async () => {
