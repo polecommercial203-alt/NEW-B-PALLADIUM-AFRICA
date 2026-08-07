@@ -26,7 +26,10 @@
   const PREF = 'pa_brief_voix';          // 'off' pour couper la voix
   const VU = 'pa_brief_vu';              // date du dernier point de situation
 
-  const voixCoupee = () => localStorage.getItem(PREF) === 'off';
+  /* Deux niveaux : le réglage de l'organisation prime, le choix du poste
+   * ne peut que couper davantage — jamais rallumer ce que l'admin a éteint. */
+  const voixCoupee = () => window.__paBriefVoix === false
+    || localStorage.getItem(PREF) === 'off';
 
   /* ── Formulation ─────────────────────────────────────────────────────────
    * Le ton suit l'heure : on ne dit pas « bonjour » à 19 h. Détail mineur, mais
@@ -174,13 +177,23 @@
    * situation deviendrait une nuisance et serait coupé par tout le monde. */
   window.paBrief = async function (api, moi, force) {
     try {
+      /* Réglage de l'organisation d'abord : s'il est coupé, rien ne s'affiche,
+       * quel que soit le choix local de la personne. */
+      let reglage = { texte: true, voix: true };
+      try { reglage = await api.getBriefSettings(); } catch (_) {}
+      /* Les deux canaux sont indépendants : voix seule pour qui est en
+       * déplacement, écrit seul pour qui travaille en open space. Tout couper
+       * désactive simplement la fonction. */
+      if (!reglage.texte && !reglage.voix) return;
+      window.__paBriefVoix = reglage.voix !== false;
+
       const cle = VU + ':' + (moi.name || moi.email || '?');
       const jour = new Date().toISOString().slice(0, 10);
       if (!force && localStorage.getItem(cle) === jour) return;
       localStorage.setItem(cle, jour);
 
       const texte = composer(await reunir(api, moi));
-      afficher(texte);
+      if (reglage.texte !== false) afficher(texte);
       parler(texte);
     } catch (err) {
       console.warn('[Brief] point de situation indisponible', err);
