@@ -16,11 +16,12 @@
  * par-dessus produirait des données incohérentes.
  * ========================================================================== */
 
-const VERSION = 'palladium-v1';
+const VERSION = 'palladium-v3';
 const SHELL = [
   './',
   './index.html',
   './pa-firebase.js',
+  './brief.js',
   './firebase-config.js',
   './manifest.webmanifest',
   './icons/icon-192.png',
