@@ -16,7 +16,7 @@
  * par-dessus produirait des données incohérentes.
  * ========================================================================== */
 
-const VERSION = 'palladium-v6';
+const VERSION = 'palladium-v9';
 const SHELL = [
   './',
   './index.html',
