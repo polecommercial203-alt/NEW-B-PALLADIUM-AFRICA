@@ -189,9 +189,22 @@ function watch() {
     if (!ready) { ready = true; return; }          // instantané initial
     const distant = snap.docChanges().some(c =>
       !c.doc.metadata.hasPendingWrites && c.doc.data()._by !== uid);
-    if (distant) {
+    if (!distant) return;
+
+    /* Rechargement automatique — mais jamais au milieu d'une saisie. Une modale
+     * ouverte ou un champ en cours de frappe signifie que quelqu'un travaille :
+     * recharger lui ferait perdre ce qu'il est en train d'écrire. Dans ce cas on
+     * se contente du bandeau, et l'utilisateur décide. */
+    const enSaisie = document.querySelector('.modal-overlay')
+      || ['INPUT', 'TEXTAREA', 'SELECT'].includes(
+           (document.activeElement && document.activeElement.tagName) || '');
+
+    if (enSaisie) {
       banner('Un collègue vient de modifier des données.', () => location.reload());
+      return;
     }
+    banner('Mise à jour des données…', null);
+    setTimeout(() => location.reload(), 900);
   }, err => console.error('[Firebase] écoute interrompue', err));
 }
 
