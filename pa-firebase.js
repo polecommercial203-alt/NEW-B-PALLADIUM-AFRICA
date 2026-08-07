@@ -177,6 +177,22 @@ function push(state) {
   pushTimer = setTimeout(flush, 700);              // regroupe les rafales de saisie
 }
 
+/** Rapatriement complet depuis la base.
+ *  Écrase la copie locale du poste par le contenu réel de Firestore. Utile quand
+ *  un navigateur s'est retrouvé désynchronisé — la base fait foi, toujours. */
+async function pull() {
+  const distant = await loadState();
+  if (!distant) throw new Error('base vide');
+  localStorage.setItem(DB_KEY, JSON.stringify(distant));
+  lastSent = Object.fromEntries(
+    Object.entries(split(distant)).map(([k, v]) => [k, JSON.stringify(v)]));
+  /* On annule toute écriture en attente : elle proviendrait de l'état périmé
+   * qu'on vient précisément de remplacer. */
+  pendingState = null;
+  clearTimeout(pushTimer);
+  return distant;
+}
+
 /* ══════════════════ Écoute des autres postes ══════════════════
  * On ne réinjecte PAS à chaud dans l'objet `state` vivant : des vues sont en
  * cours de rendu et tiennent des références. On prévient, l'utilisateur recharge
@@ -772,7 +788,7 @@ async function boot(user) {
   }
 
   /* 4. Branchements exposés à l'application. */
-  window.paSync = { push, flush };
+  window.paSync = { push, flush, pull };
   window.paFiles = { upload: uploadFile, remove: removeFile };
   window.paAdmin = { createUser, disableUser, enableUser, setRole, resetPassword, listUsers };
   window.paAccount = { changePassword, mustChange: !!profile.mustChange };
