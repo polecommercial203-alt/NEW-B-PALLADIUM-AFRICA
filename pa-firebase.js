@@ -67,8 +67,14 @@ const ORG_PATH = ['orgs', ORG_ID];
  * un module au CRM ne casse donc rien, on range plus tard. */
 const SHARDS = {
   config: ['v', 'seq', 'seqPro', 'seqFact', 'entreprise', 'nom', 'forme', 'adresse',
-    'rccm', 'ifu', 'tel', 'email', 'tvaRate', 'devise', 'permissions', 'lists',
-    'apporteurs', 'targets', 'alertParams', 'emailSettings', 'disciplineKPIs', 'cdcDept'],
+    'rccm', 'ifu', 'tel', 'email', 'tvaRate', 'devise', 'permissions',
+    'apporteurs', 'targets', 'alertParams', 'emailSettings', 'disciplineKPIs',
+    'cdcDept', 'briefSettings'],
+
+  /* Listes de référence — tranche à part, écrite par tous ceux qui saisissent.
+   * Les laisser dans « config » les rendait inaccessibles aux commerciaux, que
+   * les règles Firestore tiennent à l'écart du paramétrage. */
+  referentiel: ['lists'],
 
   equipe: ['team', 'adminUsers', 'individualTargets'],
 
